@@ -2,7 +2,7 @@
 // @name         AO3Blacklist
 // @namespace    https://github.com/VincentPvoid
 // @version      0.1.8
-// @description  A simple Greasemonkey script that blacklists user-selected authors, users, and keywords on AO3. Forked from github.com/VincentPvoid
+// @description  A simple Greasemonkey script that blacklists user-selected authors, commenters, and keywords on AO3. Forked from github.com/VincentPvoid
 // @author       Snarp
 // @match        https://*.archiveofourown.org/*
 // @supportURL   https://github.com/Snarp/AO3banList-Script
@@ -13,7 +13,7 @@
 
   let setting = {
     openNewPage: false, // Open works in new window
-    quickKudo: false,   // Enable quick-like shortcut
+    quickKudo: false,   // Enable quick-kudos shortcut
     showBanBtn: true, // Show 'Blacklist Author' button
     useBanAuthors: true, // Hide blacklisted authors' works
     useBanUsers: true, // Hide blacklisted users' comments
@@ -22,14 +22,14 @@
     filterKwType: 'ALL', // Keyword filter mode ('TITLE'/'SUMMARY'/'ALL')
   }
   let banAuthorsList = []; // blacklisted authors
-  // saved author blacklist
+  // saved author blacklist:
   let localBanAuthorsList = JSON.parse(window.localStorage.getItem('vpv_ban_list'));
   if (localBanAuthorsList && localBanAuthorsList.length) {
     banAuthorsList = localBanAuthorsList;
   }
 
-  let banUsersList = []; // blacklisted users
-  // saved user blacklist
+  let banUsersList = []; // blacklisted commenters
+  // saved commenter blacklist:
   let localBanUsersList = JSON.parse(window.localStorage.getItem('vpv_ban_users_list'));
   if (localBanUsersList && localBanUsersList.length) {
     banUsersList = localBanUsersList;
@@ -38,7 +38,7 @@
   let watchCommentsListTimer = null;
 
   let filterKwList = []; // blacklisted keywords
-  // saved keyword blacklist
+  // saved keyword blacklist:
   let localFilterKwList = JSON.parse(window.localStorage.getItem('vpv_filter_kw_list'));
   if (localFilterKwList && localFilterKwList.length) {
     filterKwList = localFilterKwList;
@@ -70,7 +70,7 @@
       </div>
       <div class="setting-items">
         <label>
-          <input type="checkbox"> Enable Quick-Like (quick key=[K])
+          <input type="checkbox"> Enable Quick-Kudos (quick key=[K])
         </label>
       </div>
       <div class="setting-items">
@@ -97,7 +97,7 @@
         </label>
       </div>
       <div class="setting-items">
-        <button class="btn-users-list">Manage user blacklist</button>
+        <button class="btn-users-list">Manage commenter blacklist</button>
       </div>
 
       <div class="setting-items">
@@ -107,7 +107,7 @@
       </div>
       <div class="setting-items">
         <button class="btn-keywords-list">Manage keyword blacklist</button>
-        <select id="vpv-AO3-keyword-select">
+        <p>Filter keywords in:</p><select id="vpv-AO3-keyword-select">
           <option value="ALL">Title + Summary</option>
           <option value="TITLE">Title</option>
           <option value="SUMMARY">Summary</option>
@@ -143,7 +143,7 @@
             <div>
               <div class="btn-close">x</div>
             </div>
-            <p>Add author</p>
+            <p>Add an author:</p>
             <input type="text" placeholder="author name" class="add-input">
             <button class="btn-add-author">Add</button>
           </div>
@@ -154,7 +154,7 @@
       <div class="inner-cover-users">
         <div class="ban-users-list-con">
           <div class="btn-close">x</div>
-          <h4>Blacklisted Users</h4>
+          <h4>Blacklisted Commenters</h4>
           <div class="ban-users-list">
             <table>
               <thead>
@@ -174,7 +174,7 @@
             <div>
               <div class="btn-close">x</div>
             </div>
-            <p>Add User</p>
+            <p>Add a commenter:</p>
             <input type="text" placeholder="username" class="add-input">
             <button class="btn-add-user">Add</button>
           </div>
@@ -193,7 +193,7 @@
             </div>
             <div class="export-items">
               <label>
-                <input type="checkbox"> Blacklisted Users
+                <input type="checkbox"> Blacklisted Commenters
               </label>
             </div>
             <div class="import-btn-con">
@@ -220,8 +220,8 @@
           <div class="filter-keywords-list">
             <textarea cols="20" rows="15"></textarea>
           </div>
-          <p>Description: one per line, case sensitive</p>
-          <button class="btn-save-filter-keywords">Save List</button>
+          <p>One keyword per line; case-sensitive.</p>
+          <button class="btn-save-filter-keywords">Save</button>
 
         </div>
       </div>
@@ -259,7 +259,7 @@
     }
   }
 
-  // Press K to quick-like; not triggered when text box is focused
+  // Press K to quick-kudos; not triggered when text box is focused
   if (setting.quickKudo) {
     document.onkeyup = function (e) {
       // select Kudos button
@@ -553,7 +553,7 @@
   // If "Show/Hide comments" is checked
   let showCommentBtn = document.querySelector('#show_comments_link')
 
-  // If user blacklist is enabled
+  // If commenter blacklist is enabled
   if (setting.useBanUsers && banUsersList.length && showCommentBtn) {
     // Select all comments currently displayed (excluding collapsed comments)
     // Note: Comments are fetched asynchronously, and so cannot be acquired immediately on page load
@@ -598,15 +598,15 @@
 
 
   /*
-  BLACKLISTING USERS
+  BLACKLISTING COMMENTERS
   */
 
-  // Generate list of blacklisted users
+  // Generate commenter blacklist
   let banUsersTable = document.querySelector('#vpv_AO3_main_cover .ban-users-list table');
   if (banUsersList.length) {
     createBanList(banUsersList, banUsersTable)
   }
-  // Click delete to delete the user list entry
+  // Click "delete" to delete the commenter blacklist entry
   banUsersTable.addEventListener('click', (e) => {
     if (e.target.classList.contains('btn-delete')) {
       let tr = e.target.parentElement.parentElement;
@@ -619,14 +619,14 @@
   })
 
 
-  // Open the list of blacklisted users
+  // Open the commenter blacklist
   let btnUsersList = document.querySelector('#vpv_AO3_main_cover .btn-users-list');
   btnUsersList.addEventListener('click', () => {
     let listCover = document.querySelector('#vpv_AO3_main_cover .inner-cover-users');
     listCover.style.display = 'block';
   })
 
-  // Open "Add User" dialog
+  // Open add-commenter-to-blacklist dialog
   let btnOpenAddUser = document.querySelector('#vpv_AO3_main_cover .btn-open-add-user');
   btnOpenAddUser.addEventListener('click', () => {
     let addUserCon = document.querySelector('#vpv_AO3_main_cover .add-user-con');
@@ -634,7 +634,7 @@
   })
 
   let btnAddUser = document.querySelector('#vpv_AO3_main_cover .btn-add-user');
-  // Add users to blacklist
+  // Add commenters to blacklist
   btnAddUser.addEventListener('click', () => {
     let par = btnAddUser.parentElement;
     let input = par.querySelector('.add-input');
@@ -654,7 +654,7 @@
       banUsersTable.querySelector('tbody').appendChild(tr);
     }
     input.value = '';
-    // Close "Add User" dialog
+    // Close dialog
     par.style.display = 'none';
   })
 
@@ -676,16 +676,16 @@
     showTopTip(topTip, 'Author blacklist cleared; please refresh.')
   })
 
-  // Clear user blacklist
+  // Clear commenter blacklist
   let btnClearUsersList = document.querySelector('.inner-cover-users .btn-clear-users-list');
   btnClearUsersList.addEventListener('click', () => {
     let list = btnClearUsersList.parentElement.querySelector('table tbody');
     if (list.innerHTML.trim() === '') return;
-    if (!window.confirm('Are you sure you want to clear the user blacklist?')) return;
+    if (!window.confirm('Are you sure you want to clear the commenter blacklist?')) return;
 
     list.innerHTML = '';
     window.localStorage.removeItem('vpv_ban_users_list');
-    showTopTip(topTip, 'User blacklist cleared; please refresh.')
+    showTopTip(topTip, 'Commenter blacklist cleared; please refresh.')
   })
 
 
@@ -842,8 +842,8 @@
     }, 2000);
   }
 
-  // Filter users function
-  // banUsersList = currently-saved user blacklist; usersComments = current list of all comments
+  // Filter commenters function
+  // banUsersList = currently-saved commenter blacklist; usersComments = current list of all comments
   function filterUserList(banUsersList, usersComments) {
     // console.log('--------',usersComments)
     usersComments = [].slice.call(usersComments);

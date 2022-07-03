@@ -1,133 +1,134 @@
 // ==UserScript==
-// @name         AO3屏蔽某作者文章和某用户评论
+// @name         AO3banList-Script
 // @namespace    https://github.com/VincentPvoid
 // @version      0.1.7
-// @description  一个简单的屏蔽特定AO3作者和特定用户评论的脚本
+// @description  A simple Greasemonkey script that blacklists user-selected authors, users, and keywords on AO3.
 // @author       VincentPViod
-// @match        https://archiveofourown.org/*
+// @match        https://*.archiveofourown.org/*
+// @supportURL   https://github.com/VincentPvoid/AO3banList-Script
 // ==/UserScript==
 
 (function () {
   'use strict';
 
   let setting = {
-    openNewPage: false, // 是否在新窗口打开文章
-    quickKudo: false,   // 是否打开快捷点赞
-    showBanBtn: true, // 是否显示屏蔽作者按钮
-    useBanAuthors: true, // 是否屏蔽黑名单作者文章
-    useBanUsers: true, // 是否屏蔽黑名单用户
-    useBanOrphans: false, // 是否屏蔽orphan_account账号
-    useFilterTitleSummary: false, // 是否进行关键词屏蔽
-    filterKwType: 'ALL', // 关键词屏蔽模式（标题简介/标题/简介）
+    openNewPage: false, // Open works in new window
+    quickKudo: false,   // Enable quick-like shortcut
+    showBanBtn: true, // Show 'Blacklist Author' button
+    useBanAuthors: true, // Hide blacklisted authors' works
+    useBanUsers: true, // Hide blacklisted users' comments
+    useBanOrphans: false, // Blacklist `orphan_account`
+    useFilterTitleSummary: false, // Enable keyword filter
+    filterKwType: 'ALL', // Keyword filter mode ('TITLE'/'SUMMARY'/'ALL')
   }
-  let banAuthorsList = []; // 屏蔽作者列表
-  // 保存的屏蔽作者列表
+  let banAuthorsList = []; // blacklisted authors
+  // saved author blacklist
   let localBanAuthorsList = JSON.parse(window.localStorage.getItem('vpv_ban_list'));
   if (localBanAuthorsList && localBanAuthorsList.length) {
     banAuthorsList = localBanAuthorsList;
   }
 
-  let banUsersList = []; // 屏蔽用户列表
-  // 保存的屏蔽用户列表
+  let banUsersList = []; // blacklisted users
+  // saved user blacklist
   let localBanUsersList = JSON.parse(window.localStorage.getItem('vpv_ban_users_list'));
   if (localBanUsersList && localBanUsersList.length) {
     banUsersList = localBanUsersList;
   }
-  // 监视评论列表的计时器
+  // A timer to monitor the comment list
   let watchCommentsListTimer = null;
 
-  let filterKwList = []; // 屏蔽关键词列表
-  // 保存的屏蔽关键词列表
+  let filterKwList = []; // blacklisted keywords
+  // saved keyword blacklist
   let localFilterKwList = JSON.parse(window.localStorage.getItem('vpv_filter_kw_list'));
   if (localFilterKwList && localFilterKwList.length) {
     filterKwList = localFilterKwList;
   }
 
 
-  // 生成打开设置菜单按钮
+  // Generate a button to open settings menu
   let btnOpenSetting = document.createElement('div');
   btnOpenSetting.setAttribute('id', 'vpv_AO3_switch_btn');
-  btnOpenSetting.innerHTML = 'AO3插件设置';
+  btnOpenSetting.innerHTML = 'AO3BanList';
 
-  // 生成顶部提示
+  // Generate top tip
   let topTip = document.createElement('div');
   topTip.setAttribute('id', 'vpv_top_tip');
   topTip.innerHTML = '';
   document.body.appendChild(topTip);
 
-  // 生成整体容器；覆盖整个页面
+  // Generate the overall container; covers entire page
   let mainDivCover = document.createElement('div');
   mainDivCover.setAttribute('id', 'vpv_AO3_main_cover');
   mainDivCover.innerHTML = `
     <div class="vpv-AO3-main-con">
       <div class="btn-close">x</div>
-      <h3 class="title">AO3插件 v0.1.7</h3>
+      <h3 class="title">AO3BanList v0.1.7</h3>
       <div class="setting-items">
         <label>
-          <input type="checkbox"> 新窗口打开文章
+          <input type="checkbox"> Open works in new window
         </label>
       </div>
       <div class="setting-items">
         <label>
-          <input type="checkbox"> 快捷点赞（快键键[K]）
+          <input type="checkbox"> Enable Quick-Like (quick key=[K])
         </label>
       </div>
       <div class="setting-items">
         <label>
-          <input type="checkbox" checked> 显示屏蔽作者按钮
+          <input type="checkbox" checked> Show "Blacklist Author" button
         </label>
       </div>
       <div class="setting-items">
         <label>
-          <input type="checkbox" checked> 屏蔽orphan_account账号文章
+          <input type="checkbox" checked> Blacklist orphan_account
         </label>
       </div>
       <div class="setting-items">
         <label>
-          <input type="checkbox" checked> 屏蔽作者文章
+          <input type="checkbox" checked> Hide works by blacklisted authors
         </label>
       </div>
       <div class="setting-items">
-        <button class="btn-authors-list">名单管理</button>
+        <button class="btn-authors-list">Manage author blacklist</button>
       </div>
       <div class="setting-items">
         <label>
-          <input type="checkbox" checked> 屏蔽用户评论
+          <input type="checkbox" checked> Hide comments by blacklisted users
         </label>
       </div>
       <div class="setting-items">
-        <button class="btn-users-list">名单管理</button>
+        <button class="btn-users-list">Manage User Blacklist</button>
       </div>
 
       <div class="setting-items">
         <label>
-          <input type="checkbox" checked> 关键字屏蔽
+          <input type="checkbox" checked> Enable keyword blacklist
         </label>
       </div>
       <div class="setting-items">
-        <button class="btn-keywords-list">关键字管理</button>
+        <button class="btn-keywords-list">Manage keyword blacklist</button>
         <select id="vpv-AO3-keyword-select">
-          <option value="ALL">标题和简介</option>
-          <option value="TITLE">仅标题</option>
-          <option value="SUMMARY">仅简介</option>
+          <option value="ALL">Title + Summary</option>
+          <option value="TITLE">Title</option>
+          <option value="SUMMARY">Summary</option>
         </select>
       </div>
 
       <div class="bottom-con">
-        <button class="btn-open-import">导入/导出名单</button>
-        <button class="btn-save">保存设置</button>
+        <button class="btn-open-import">Import/Export Data</button>
+        <button class="btn-save">Save Settings</button>
       </div>
 
       <div class="inner-cover-authors">
         <div class="ban-authors-list-con">
           <div class="btn-close">x</div>
-          <h4>屏蔽作者名单管理</h4>
+          <h4>Manage Author Blacklist</h4>
           <div class="ban-authors-list">
             <table>
               <thead>
                 <tr>
-                  <th>用户名</th>
-                  <th>操作</th>
+                  <th>Username</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,16 +136,16 @@
               </tbody>
             </table>
           </div>
-          <button class="btn-open-add-author">添加作者</button>
-          <button class="btn-clear-authors-list">清空作者列表</button>
-          <button class="btn-clear-invalid-authors" title="此作者名不存在或此作者名下没有作品，则会被清除；名单长度太长时可能会有问题">清空无效作者</button>
+          <button class="btn-open-add-author">Add</button>
+          <button class="btn-clear-authors-list">Delete all</button>
+          <button class="btn-clear-invalid-authors" title="Identifies and removes authors who do not exist or have no visible works; prevents memory bloat.">Delete invalid</button>
           <div class="add-author-con">
             <div>
               <div class="btn-close">x</div>
             </div>
-            <p>添加作者</p>
-            <input type="text" placeholder="作者名" class="add-input">
-            <button class="btn-add-author">添加</button>
+            <p>Add author</p>
+            <input type="text" placeholder="author name" class="add-input">
+            <button class="btn-add-author">Add</button>
           </div>
           <p class="clear-list-tip"></p>
         </div>
@@ -153,13 +154,13 @@
       <div class="inner-cover-users">
         <div class="ban-users-list-con">
           <div class="btn-close">x</div>
-          <h4>屏蔽用户名单管理</h4>
+          <h4>Manage User Blacklist</h4>
           <div class="ban-users-list">
             <table>
               <thead>
                 <tr>
-                  <th>用户名</th>
-                  <th>操作</th>
+                  <th>Username</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -167,15 +168,15 @@
               </tbody>
             </table>
           </div>
-          <button class="btn-open-add-user">添加用户</button>
-          <button class="btn-clear-users-list">清空用户列表</button>
+          <button class="btn-open-add-user">Add user</button>
+          <button class="btn-clear-users-list">Delete all</button>
           <div class="add-user-con">
             <div>
               <div class="btn-close">x</div>
             </div>
-            <p>添加用户</p>
-            <input type="text" placeholder="用户名" class="add-input">
-            <button class="btn-add-user">添加</button>
+            <p>Add User</p>
+            <input type="text" placeholder="username" class="add-input">
+            <button class="btn-add-user">Add</button>
           </div>
         </div>
       </div>
@@ -184,28 +185,28 @@
         <div class="import-export-con">
           <div class="btn-close">x</div>
           <div class="import-left">
-            <h4>选择要导出的名单</h4>
+            <h4>Data to Export</h4>
             <div class="export-items">
               <label>
-                <input type="checkbox">屏蔽作者名单
+                <input type="checkbox"> Author Blacklist
               </label>
             </div>
             <div class="export-items">
               <label>
-                <input type="checkbox">屏蔽用户名单
+                <input type="checkbox"> User Blacklist
               </label>
             </div>
             <div class="import-btn-con">
-              <button class="btn-export">导出</button>
-              <button class="btn-import">导入</button>
+              <button class="btn-export">Export</button>
+              <button class="btn-import">Import</button>
             </div>
             <div class="import-export-msg">
             </div>
           </div>
 
           <div class="import-right">
-            <h4>名单字符串</h4>
-            <textarea cols="30" rows="12" placeholder="将名单字符串复制到这里，点击【导入】即可导入名单；点击【导出】后，这里将显示当前名单字符串，可以复制进行备份等"></textarea>
+            <h4>List String</h4>
+            <textarea cols="30" rows="12" placeholder="Copy the list string here. Click [Import] to import the list. Click [Export] to display the current list string, which can be copied-and-pasted."></textarea>
           </div>
      
         </div>
@@ -215,12 +216,12 @@
       <div class="inner-cover-keywords">
         <div class="filter-keywords-list-con">
           <div class="btn-close">x</div>
-          <h4>屏蔽关键字</h4>
+          <h4>Keyword Blacklist</h4>
           <div class="filter-keywords-list">
             <textarea cols="20" rows="15"></textarea>
           </div>
-          <p>说明：一行一条，大小写敏感</p>
-          <button class="btn-save-filter-keywords">保存列表</button>
+          <p>Description: one per line, case sensitive</p>
+          <button class="btn-save-filter-keywords">Save List</button>
 
         </div>
       </div>
@@ -230,10 +231,10 @@
 
       </div>`;
 
-  // 把需要的结构插入body中
+  // Insert the required structures into document body
   document.body.appendChild(mainDivCover);
 
-  // 保存的设置
+  // Saved settings
   let localSetting = window.localStorage.getItem('vpv_AO3_setting');
   if (JSON.parse(localSetting)) {
     // console.log(localSetting)
@@ -250,7 +251,7 @@
     settingSelect.value = setting.filterKwType || 'ALL';
   }
 
-  // 在新窗口打开文章
+  // Open work in new window
   if (setting.openNewPage) {
     let titlesA = document.querySelectorAll('#main h4.heading a:first-child');
     for (let i = 0; i < titlesA.length; i++) {
@@ -258,14 +259,14 @@
     }
   }
 
-  // 按K快捷点赞；当focus文本框时不触发
+  // Press K to quick-like; not triggered when text box is focused
   if (setting.quickKudo) {
     document.onkeyup = function (e) {
-      // 选中kudo按钮
+      // select Kudos button
       let btnKudo = document.querySelector('#new_kudo [type="submit"]');
 
-      // 监听键盘事件，当e.target为input和textarea时不触发事件
-      // 注意：kudo键本身为input；如果focus在kudo键上也不能触发事件
+      // Listen for keyboard events, and do not trigger events when e.target is input or textarea
+      // Note: the kudos key itself is an input; if the kudos key is focused, the event cannot be triggered
       if (e.keyCode === 75 && !(e.target.nodeName === 'INPUT' || e.target.nodeName === 'TEXTAREA')) {
         window.scroll(0, btnKudo.offsetTop);
         btnKudo.click();
@@ -274,11 +275,11 @@
     }
   }
 
-  // 所有作者列表数组
+  // Array of all authors
   let authors = document.querySelectorAll('h4.heading [rel="author"]');
   authors = [].slice.call(authors);
 
-  // 如果选择屏蔽作者功能打开
+  // If author-filtering is enabled:
   if (setting.useBanAuthors && banAuthorsList.length) {
     let tars = [];
     let temp = null;
@@ -297,7 +298,7 @@
     })
   }
 
-  // 如果选择屏蔽orphan_account账号功能打开
+  // If blacklisting 'orphan_account' is enabled:
   if (setting.useBanOrphans) {
     let tars = [];
     let temp = null;
@@ -315,26 +316,26 @@
     })
   }
 
-  // 如果过滤关键词功能打开
+  // If keyword filtering is enabled:
   if (setting.useFilterTitleSummary && filterKwList.length) {
-    // works列表
+    // works list
     let workLis = document.querySelectorAll('ol.work>li')
     let tarsArr = [];
     let temp = null;
     let tar = null;
     for (let i = 0; i < workLis.length; i++) {
       tar = filterKwList.find(item => {
-        // 如果选择过滤全部/标题；标题一定存在所以不用进行检查
+        // If title-checking is enabled, ensure that title exists
         if (setting.filterKwType === 'ALL' || setting.filterKwType === 'TITLE') {
           temp = workLis[i].querySelector('.heading a:first-child')
           if (temp.innerHTML.includes(item)) {
             return true
           }
         }
-        // 如果选择过滤全部/简介
+        // If summary-checking is enabled
         if (setting.filterKwType === 'ALL' || setting.filterKwType === 'SUMMARY') {
           temp = workLis[i].querySelector('.summary')
-          // 简介可能为空所以需要进行检查
+          // Ensure that summary exists
           if (temp) {
             temp = temp.innerText.replaceAll('\n\n', ' ')
             if (temp.includes(item)) {
@@ -355,24 +356,24 @@
   }
 
 
-  // 打开设置菜单
+  // Open settings menu
   btnOpenSetting.addEventListener('click', () => {
     let mainDivCover = document.querySelector('#vpv_AO3_main_cover');
     mainDivCover.style.display = 'flex';
     // console.log('abc')
   })
 
-  // 把开关插入左上用户导航栏
+  // Inserting button into upper-left user navbar
   let greeting = document.querySelector('#greeting') ? document.querySelector('#greeting') : document.querySelector('#login');
-  // 如果没有该结构，则不插入
+  // If navbar is not present, do not insert
   if (greeting != null) {
     greeting.insertBefore(btnOpenSetting, greeting.children[0]);
   }
 
-  // 清除无效作者按钮下方tips容器
+  // Clear tips container under "invalid author" button
   let clearListTip = document.querySelector('.inner-cover-authors .clear-list-tip')
 
-  // 关闭按钮事件
+  // Close button event
   let btnCloses = document.querySelectorAll('#vpv_AO3_main_cover .btn-close');
   for (let i = 0; i < btnCloses.length; i++) {
     btnCloses[i].addEventListener('click', () => {
@@ -386,20 +387,20 @@
 
 
   /*
-  屏蔽作者相关
+  BLACKLISTING AUTHORS
   */
 
-  // 生成屏蔽作者按钮
+  // Generate inline "Blacklist Author" button for works listings
   if (setting.showBanBtn) {
     for (let i = 0; i < authors.length; i++) {
       let tar = authors[i].parentElement;
       if (authors[i].textContent === 'orphan_account') continue;
       let btnBan = document.createElement('div');
       btnBan.setAttribute('class', 'vpv-AO3-ban-btn');
-      btnBan.innerHTML = '屏蔽该作者';
+      btnBan.innerHTML = 'Blacklist Author';
       tar.appendChild(btnBan);
 
-      // 点击 屏蔽该作者 按钮把作者加入黑名单
+      // Click the inline "Blacklist Author" button to blacklist author
       btnBan.addEventListener('click', function () {
         // console.log(authors[i].textContent);
         let text = authors[i].textContent;
@@ -410,17 +411,17 @@
           banAuthorsList.push(text);
         }
         window.localStorage.setItem('vpv_ban_list', JSON.stringify(banAuthorsList));
-        showTopTip(topTip, '屏蔽成功，刷新后生效');
+        showTopTip(topTip, 'Author blacklisted; reload to filter results.');
       })
     }
   }
 
-  // 生成屏蔽作者名单列表
+  // Generate author blacklist
   let banAuthorsTable = document.querySelector('#vpv_AO3_main_cover .ban-authors-list table');
   if (banAuthorsList.length) {
     createBanList(banAuthorsList, banAuthorsTable)
   }
-  // 点击删除，删除作者名单列表条目
+  // Click delete to clear author blacklist
   banAuthorsTable.addEventListener('click', (e) => {
     if (e.target.classList.contains('btn-delete')) {
       let tr = e.target.parentElement.parentElement;
@@ -433,14 +434,14 @@
   })
 
 
-  // 打开屏蔽作者名单列表
+  // Open author blacklist
   let btnAnthorsList = document.querySelector('#vpv_AO3_main_cover .btn-authors-list');
   btnAnthorsList.addEventListener('click', () => {
     let listCover = document.querySelector('#vpv_AO3_main_cover .inner-cover-authors');
     listCover.style.display = 'block';
   })
 
-  // 打开添加作者弹框
+  // Open "Blacklist author" dialog
   let btnOpenAddAuthor = document.querySelector('#vpv_AO3_main_cover .btn-open-add-author');
   btnOpenAddAuthor.addEventListener('click', () => {
     let addAuthorCon = document.querySelector('#vpv_AO3_main_cover .add-author-con');
@@ -448,14 +449,14 @@
   })
 
   let btnAddAuthor = document.querySelector('#vpv_AO3_main_cover .btn-add-author');
-  // 添加作者进入屏蔽列表
+  // Add author to blacklist
   btnAddAuthor.addEventListener('click', () => {
     let par = btnAddAuthor.parentElement;
     let input = par.querySelector('.add-input');
     // console.log(input.value)
     let text = input.value.trim();
     if (text === '') {
-      showTopTip(topTip, '请输入作者名');
+      showTopTip(topTip, 'Enter author name');
       return;
     }
     if (banAuthorsList.indexOf(text) === -1) {
@@ -464,15 +465,15 @@
 
       let tr = document.createElement('tr');
       tr.innerHTML = `<td>${text}</td>
-          <td><button class="btn-delete">删除</button></td>`;
+          <td><button class="btn-delete">Delete</button></td>`;
       banAuthorsTable.querySelector('tbody').appendChild(tr);
     }
     input.value = '';
-    // 关闭添加作者弹框
+    // Close "Blacklist author" dialog
     par.style.display = 'none';
   })
 
-  // 清空无效作者
+  // Clear invalid authors
   let btnClearInvaildAuthors = document.querySelector('.inner-cover-authors .btn-clear-invalid-authors')
   // let clearListTip = document.querySelector('.inner-cover-authors .clear-list-tip')
   btnClearInvaildAuthors.addEventListener('click', () => {
@@ -481,17 +482,17 @@
       banAuthorsList = banAuthorsList.filter(item => item != 'orphan_account')
       window.localStorage.setItem('vpv_ban_list', JSON.stringify(banAuthorsList));
       createBanList(banAuthorsList, banAuthorsTable)
-      clearListTip.innerHTML = `请勿添加orphan_account到屏蔽名单中，如需屏蔽，请使用屏蔽orphan_account功能；当前已清除orphan_account，请重新开始清理功能`
+      clearListTip.innerHTML = `If you wish to blacklist "orphan_account", please use the "Blacklist orphan_account" function. Please restart the "Clear invalid" function.`
       return;
     }
 
     let invaildArr = [];
     // let promiseArr = [];
-    let failedReqList = []  // 清除无效作者发送请求的失败列表
+    let failedReqList = []  // Clear the failed list of requests sent by invalid authors
     let num = 0;
     // let isHasOrphanAcc = false;
     const baseUrl = 'https://archiveofourown.org/users/'
-    const keyword = 'id="user-works"' // 如果该作者存在并且有作品，则会带有该字段
+    const keyword = 'id="user-works"' // If the author exists and has works, this field will be included
     // banAuthorsList.forEach(item => {
     //   promiseArr.push(baseSendRequest(baseUrl + item))
     // })
@@ -499,7 +500,7 @@
     sendList(banAuthorsList)
 
     function sendList(listArr) {
-      clearListTip.innerHTML = '正在处理，请稍后（请勿重复点击）；如不想继续清理，请刷新页面'
+      clearListTip.innerHTML = 'Processing; please do not click. (To abort, refresh page.)'
       let promiseArr = [];
       listArr.forEach(item => {
         promiseArr.push(baseSendRequest(baseUrl + item))
@@ -533,14 +534,14 @@
 
             createBanList(banAuthorsList, banAuthorsTable)
           }
-          clearListTip.innerHTML = `已清除${num}个无效作者 `
+          clearListTip.innerHTML = `${num} invalid authors purged. `
           if (failedReqList.length) {
-            clearListTip.innerHTML += '请求过多，AO3需要冷却，冷却需要1min左右；列表清理未完成，请保持页面状态等待清理完成；如不想继续清理，请刷新页面'
+            clearListTip.innerHTML += 'Too many requests; AO3 on cooldown for roughly 60 seconds. List cleanup incomplete. To continue cleanup, please wait; to abort, click refresh.'
             setTimeout(() => {
               sendList(failedReqList)
             }, 60000)
           } else {
-            clearListTip.innerHTML = `清理完成，已清除${num}个无效作者`
+            clearListTip.innerHTML = `Cleanup complete. ${num} invalid authors purged.`
           }
         })
     }
@@ -549,16 +550,16 @@
 
 
 
-  // 选中显示/隐藏评论按钮
+  // If "Show/Hide comments" is checked
   let showCommentBtn = document.querySelector('#show_comments_link')
 
-  // 如果屏蔽用户功能打开
+  // If user blacklist is enabled
   if (setting.useBanUsers && banUsersList.length && showCommentBtn) {
-    // 选择当前显示所有评论（不包括被折叠评论）
-    // 注意：评论列表为异步获取，因此在加载页面时无法直接获取
+    // Select all comments currently displayed (excluding collapsed comments)
+    // Note: Comments are fetched asynchronously, and so cannot be acquired immediately on page load
     // let comments = document.querySelectorAll('#comments_placeholder li.comment')
 
-    // 判断当前评论按钮状态（有Hide表示评论列表已经展开）
+    // Determine the status of the current comment button ("Hide" means that the comment list has been expanded)
     if (showCommentBtn.innerText.indexOf('Hide') != -1) {
       clearInterval(watchCommentsListTimer);
       let usersComments = document.querySelectorAll('#comments_placeholder li.comment .heading a')
@@ -574,12 +575,12 @@
       }, 200)
     }
 
-    // 给评论按钮添加点击事件
+    // Add click event to comment button
     showCommentBtn.addEventListener('click', function () {
       clearInterval(watchCommentsListTimer);
       let usersComments = document.querySelectorAll('#comments_placeholder li.comment .heading a')
-      // 点击按钮时按钮依然保持之前的状态
-      // 如果点击时有Hide表示收起；没有表示展开
+      // The button remains in its previous state when the button is clicked
+      // If "Hide" when clicked, collapse; otherwise, expand
       if (this.innerText.indexOf('Hide') === -1) {
         watchCommentsListTimer = setInterval(() => {
           // console.log(123)
@@ -597,15 +598,15 @@
 
 
   /*
-  屏蔽用户相关
+  BLACKLISTING USERS
   */
 
-  // 生成屏蔽用户名单列表
+  // Generate list of blacklisted users
   let banUsersTable = document.querySelector('#vpv_AO3_main_cover .ban-users-list table');
   if (banUsersList.length) {
     createBanList(banUsersList, banUsersTable)
   }
-  // 点击删除，删除用户名单列表条目
+  // Click delete to delete the user list entry
   banUsersTable.addEventListener('click', (e) => {
     if (e.target.classList.contains('btn-delete')) {
       let tr = e.target.parentElement.parentElement;
@@ -618,14 +619,14 @@
   })
 
 
-  // 打开屏蔽用户名单列表
+  // Open the list of blacklisted users
   let btnUsersList = document.querySelector('#vpv_AO3_main_cover .btn-users-list');
   btnUsersList.addEventListener('click', () => {
     let listCover = document.querySelector('#vpv_AO3_main_cover .inner-cover-users');
     listCover.style.display = 'block';
   })
 
-  // 打开添加用户弹框
+  // Open "Add User" dialog
   let btnOpenAddUser = document.querySelector('#vpv_AO3_main_cover .btn-open-add-user');
   btnOpenAddUser.addEventListener('click', () => {
     let addUserCon = document.querySelector('#vpv_AO3_main_cover .add-user-con');
@@ -633,14 +634,14 @@
   })
 
   let btnAddUser = document.querySelector('#vpv_AO3_main_cover .btn-add-user');
-  // 添加用户进入屏蔽列表
+  // Add users to blacklist
   btnAddUser.addEventListener('click', () => {
     let par = btnAddUser.parentElement;
     let input = par.querySelector('.add-input');
     // console.log(input.value)
     let text = input.value.trim();
     if (text === '') {
-      showTopTip(topTip, '请输入用户名');
+      showTopTip(topTip, 'Enter username');
       return;
     }
     if (banUsersList.indexOf(text) === -1) {
@@ -649,42 +650,42 @@
 
       let tr = document.createElement('tr');
       tr.innerHTML = `<td>${text}</td>
-          <td><button class="btn-delete">删除</button></td>`;
+          <td><button class="btn-delete">Delete</button></td>`;
       banUsersTable.querySelector('tbody').appendChild(tr);
     }
     input.value = '';
-    // 关闭添加用户弹框
+    // Close "Add User" dialog
     par.style.display = 'none';
   })
 
 
 
   /*
-  清空列表相关
+  CLEARING BLACKLISTS
   */
 
-  // 清空屏蔽作者列表
+  // Clear author blacklist
   let btnClearAuthorsList = document.querySelector('.inner-cover-authors .btn-clear-authors-list');
   btnClearAuthorsList.addEventListener('click', () => {
     let list = btnClearAuthorsList.parentElement.querySelector('table tbody');
     if (list.innerHTML.trim() === '') return;
-    if (!window.confirm('是否确定清空屏蔽作者列表？')) return;
+    if (!window.confirm('Are you sure you want to clear the author blacklist?')) return;
 
     list.innerHTML = '';
     window.localStorage.removeItem('vpv_ban_list');
-    showTopTip(topTip, '清空成功，刷新后生效')
+    showTopTip(topTip, 'Author blacklist cleared; please refresh.')
   })
 
-  // 清空屏蔽作者列表
+  // Clear user blacklist
   let btnClearUsersList = document.querySelector('.inner-cover-users .btn-clear-users-list');
   btnClearUsersList.addEventListener('click', () => {
     let list = btnClearUsersList.parentElement.querySelector('table tbody');
     if (list.innerHTML.trim() === '') return;
-    if (!window.confirm('是否确定清空屏蔽用户列表？')) return;
+    if (!window.confirm('Are you sure you want to clear the user blacklist?')) return;
 
     list.innerHTML = '';
     window.localStorage.removeItem('vpv_ban_users_list');
-    showTopTip(topTip, '清空成功，刷新后生效')
+    showTopTip(topTip, 'User blacklist cleared; please refresh.')
   })
 
 
@@ -692,21 +693,21 @@
 
 
   /*
-   导入/导出相关
+  IMPORT AND EXPORT
   */
 
-  // 导入/导出按钮
+  // Import/Export buttons
   let btnOpenImport = document.querySelector('#vpv_AO3_main_cover .btn-open-import');
-  // 导出按钮
+  // Export button:
   let btnExport = document.querySelector('#vpv_AO3_main_cover .inner-cover-import .btn-export');
-  // 导入按钮
+  // Import button:
   let btnImport = document.querySelector('#vpv_AO3_main_cover .inner-cover-import .btn-import');
-  // 文字信息显示区
+  // Text info display area:
   let importExportMsg = document.querySelector('#vpv_AO3_main_cover .inner-cover-import .import-export-msg');
-  // 导入/导出字符串显示区
+  // Import/export data display area:
   let listStringT = document.querySelector('.inner-cover-import .import-right textarea')
 
-  // 打开导入/导出窗口
+  // Open Import/Export dialog
   btnOpenImport.addEventListener('click', () => {
     let importCover = document.querySelector('#vpv_AO3_main_cover .inner-cover-import');
     importCover.style.display = 'flex';
@@ -717,14 +718,14 @@
     lists[1].checked = false;
   })
 
-  // 导出列表字符串
+  // Export data string
   btnExport.addEventListener('click', () => {
     let obj = {};
     let lists = document.querySelectorAll('.inner-cover-import .export-items input');
 
     if (!lists[0].checked && !lists[1].checked) {
       listStringT.value = '';
-      importExportMsg.innerHTML = '请选择要导出的列表'
+      importExportMsg.innerHTML = 'Select list to export'
       return;
     }
     lists[0].checked && banAuthorsList.length && (obj['vpv_ban_list'] = banAuthorsList);
@@ -732,19 +733,19 @@
 
     if (Object.keys(obj).length) {
       listStringT.value = encode(JSON.stringify(obj));
-      importExportMsg.innerHTML = '导出成功';
+      importExportMsg.innerHTML = 'Export succeeded';
     } else {
       listStringT.value = '';
-      importExportMsg.innerHTML = '当前选中列表没有数据';
+      importExportMsg.innerHTML = 'The selected list is empty';
     }
   })
 
-  // 导入列表字符串
+  // Import data string
   btnImport.addEventListener('click', () => {
     if (listStringT.value) {
       try {
         let obj = JSON.parse(decode(listStringT.value));
-        if (!window.confirm('导入列表会覆盖原有的本地列表，是否确认导入？')) {
+        if (!window.confirm('This will overwrite your existing data. Import?')) {
           return;
         }
         // console.log(obj)
@@ -754,39 +755,39 @@
         if (Object.keys(obj).includes('vpv_ban_users_list')) {
           window.localStorage.setItem('vpv_ban_users_list', JSON.stringify(obj['vpv_ban_users_list']));
         }
-        importExportMsg.innerHTML = '导入成功，刷新后生效';
+        importExportMsg.innerHTML = 'Import succeeded; please refresh.';
       } catch (error) {
-        importExportMsg.innerHTML = '字符串有误，解析失败';
+        importExportMsg.innerHTML = 'Could not import; string formatting error.';
       }
     } else {
-      importExportMsg.innerHTML = '请填入数据'
+      importExportMsg.innerHTML = 'Field is empty'
     }
   })
 
 
   /*
-   关键词屏蔽相关
+  KEYWORD BLACKLIST
   */
-  // 关键字管理按钮
+  // Manage keywords button
   let btnOpenfilterList = document.querySelector('#vpv_AO3_main_cover .btn-keywords-list');
-  // 打开关键字管理窗口
+  // Open manage keywords dialog
   btnOpenfilterList.addEventListener('click', () => {
     let filterCover = document.querySelector('#vpv_AO3_main_cover .inner-cover-keywords');
     filterCover.style.display = 'block';
   })
-  // 关键字列表文本区
+  // Keyword list text area
   let filterKwTextarea = document.querySelector('#vpv_AO3_main_cover .filter-keywords-list textarea');
-  // 生成关键字列表文本
+  // Generate keyword list text
   if (filterKwList.length) {
     filterKwTextarea.value = filterKwList.join('\n')
   }
 
-  // 保存关键字列表按钮
+  // Save keyword list button
   let btnSaveFilterKw = document.querySelector('#vpv_AO3_main_cover .btn-save-filter-keywords');
   btnSaveFilterKw.addEventListener('click', () => {
     let par = btnSaveFilterKw.parentElement.parentElement;
 
-    // 文本区内容处理；如果为空则保存为空数组
+    // Process the content of the text area; if it is empty, save it as an empty array
     let temp = filterKwTextarea.value;
     if (temp) {
       temp = temp.split('\n');
@@ -796,7 +797,7 @@
     window.localStorage.setItem('vpv_filter_kw_list', JSON.stringify(temp));
 
     par.style.display = 'none';
-    showTopTip(topTip, '保存成功，刷新后生效');
+    showTopTip(topTip, 'Keywords saved; please refresh');
   })
 
 
@@ -805,7 +806,7 @@
 
 
 
-  // 保存设置
+  // Save settings
   let btnSaveSetting = document.querySelector('#vpv_AO3_main_cover .btn-save');
   btnSaveSetting.addEventListener('click', () => {
     let settingItems = document.querySelectorAll('#vpv_AO3_main_cover .setting-items input');
@@ -820,19 +821,19 @@
     setting.filterKwType = settingSelect.value;
     window.localStorage.setItem('vpv_AO3_setting', JSON.stringify(setting));
 
-    // 关闭设置窗口
+    // Close settings dialog
     // .btn-save --- .bottom-con --- .vpv-AO3-main-con --- vpv_AO3_main_cover
     btnSaveSetting.parentElement.parentElement.parentElement.style.display = 'none';
 
-    // 弹出提示
-    showTopTip(topTip, '保存成功，刷新后生效');
+    // Dialog prompt
+    showTopTip(topTip, 'Settings saved; please refresh.');
 
   })
 
 
 
 
-  // 顶部提示公共函数 ele元素容器 str内容
+  // Top prompt public function ele element container str content
   function showTopTip(ele, str) {
     ele.style.display = 'block';
     ele.innerHTML = str;
@@ -841,8 +842,8 @@
     }, 2000);
   }
 
-  // 过滤用户函数
-  // banUsersList当前保存的屏蔽用户列表；usersComments当前所有评论列表
+  // Filter users function
+  // banUsersList = currently-saved user blacklist; usersComments = current list of all comments
   function filterUserList(banUsersList, usersComments) {
     // console.log('--------',usersComments)
     usersComments = [].slice.call(usersComments);
@@ -858,30 +859,30 @@
   }
 
 
-  // 转码函数；虽然AO3的用户名不会有中文也不会有特殊字符，但还是顺便转换一下
-  // 转base64
+  // Transcoding function; although AO3 usernames cannot use Chinese/special characters, base64 conversion is possible
+  // base64 encoding
   function encode(str) {
     return window.btoa(unescape(encodeURIComponent(str)))
   }
-  // base64解码
+  // base64 decoding
   function decode(str) {
     return decodeURIComponent(escape(window.atob(str)))
   }
 
-  // 生成屏蔽列表函数 list列表数据 ele容器
+  // Generate mask list function list list data ele container
   function createBanList(list, ele) {
     let tbody = ele.querySelector('tbody')
     tbody.innerHTML = ''
     for (let i = 0; i < list.length; i++) {
       let tr = document.createElement('tr');
       tr.innerHTML = `<td>${list[i]}</td>
-            <td><button class="btn-delete">删除</button></td>`;
+            <td><button class="btn-delete">Delete</button></td>`;
       // ele.querySelector('tbody').appendChild(tr);
       tbody.appendChild(tr)
     }
   }
 
-  // 发送请求函数
+  // Send request function
   function baseSendRequest(url) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
@@ -890,9 +891,9 @@
       xhr.send()
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4) {
-          // 当请求成功时返回响应；
-          // 状态码不在这个范围时可能是请求过多（100左右）
-          // 429时响应为Retry later；302为重定向到people search（该用户不存在）；0为404页面（orphan_account账号页面）
+          // Return the response when the request is successful;
+          // When the status code is not in this range, there may be too many requests (about 100)
+          // 429, the response is Retry later; 302 is redirected to people search (the user does not exist); 0 is 404 page (orphan_account account page)
           // if (xhr.status >= 200 && xhr.status < 300) {
           //   resolve(xhr.response);
           // } else {
@@ -906,7 +907,7 @@
 
 
   /*
-  样式
+  CSS Styling
   */
   const style = document.createElement("style");
   style.type = "text/css";

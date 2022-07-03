@@ -89,7 +89,7 @@
         </label>
       </div>
       <div class="setting-items">
-        <button class="btn-authors-list">Manage author blacklist</button>
+        <button id="btn-authors-list">Manage author blacklist</button>
       </div>
       <div class="setting-items">
         <label>
@@ -435,7 +435,7 @@
 
 
   // Open author blacklist
-  let btnAnthorsList = document.querySelector('#vpv_AO3_main_cover .btn-authors-list');
+  let btnAnthorsList = document.querySelector('#vpv_AO3_main_cover #btn-authors-list');
   btnAnthorsList.addEventListener('click', () => {
     let listCover = document.querySelector('#vpv_AO3_main_cover .inner-cover-authors');
     listCover.style.display = 'block';
@@ -992,7 +992,7 @@
       justify-content: space-between;
     }
 
-    #vpv_AO3_main_cover [class^="btn"] {
+    #vpv_AO3_main_cover [class^="btn"], #vpv_AO3_main_cover button {
       padding: 5px 10px;
       background: #eee;
       border: 1px solid #ccc;
@@ -1003,7 +1003,7 @@
       font-size: 15px;
     }
 
-    #vpv_AO3_main_cover [class^="btn"]:hover {
+    #vpv_AO3_main_cover [class^="btn"]:hover, #vpv_AO3_main_cover button:hover {
       background: #900;
       border: 1px solid #900;
       color: #fff;

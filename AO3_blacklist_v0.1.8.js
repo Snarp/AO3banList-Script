@@ -390,25 +390,27 @@
   BLACKLISTING AUTHORS
   */
 
-  // Generate inline "Blacklist Author" button for works listings
+  // Generate inline "Blacklist Author" button next to author names in search results
   if (setting.showBanBtn) {
     for (let i = 0; i < authors.length; i++) {
       let tar = authors[i].parentElement;
-      if (authors[i].textContent === 'orphan_account') continue;
+      let authorName = authors[i].textContent;
+      if (authorName === 'orphan_account') continue;
       let btnBan = document.createElement('div');
       btnBan.setAttribute('class', 'vpv-AO3-ban-btn');
-      btnBan.innerHTML = 'Blacklist Author';
+      btnBan.innerHTML = 'Blacklist';
+      btnBan.title = authorName;
       tar.appendChild(btnBan);
 
       // Click the inline "Blacklist Author" button to blacklist author
       btnBan.addEventListener('click', function () {
         // console.log(authors[i].textContent);
-        let text = authors[i].textContent;
+        // let text = authors[i].textContent;
         // if (text === 'orphan_account') {
 
         // }
-        if (banAuthorsList.indexOf(text) === -1) {
-          banAuthorsList.push(text);
+        if (banAuthorsList.indexOf(authors[i].textContent) === -1) {
+          banAuthorsList.push(authors[i].textContent);
         }
         window.localStorage.setItem('vpv_ban_list', JSON.stringify(banAuthorsList));
         showTopTip(topTip, 'Author blacklisted; reload to filter results.');
@@ -907,7 +909,7 @@
 
 
   /*
-  CSS Styling
+  CSS STYLING
   */
   const style = document.createElement("style");
   style.type = "text/css";
@@ -929,10 +931,10 @@
     .vpv-AO3-ban-btn {
       display: inline-block;
       padding: 0 3px;
-      margin: 0 1em;
-      font-size: 14px;
-      color: #aaa;
-      border-radius: 5px;
+      margin: 0 0.15em; 
+      font-size: 12px; 
+      color: #898989; 
+      border-radius: 5px; border: 1px #898989 solid;
     }
 
     .vpv-AO3-ban-btn:hover {
